@@ -16,12 +16,13 @@ const $private = Private.getInstance();
 
 
 function makePromise(func) {
-	return (ctx, done)=>{
+	return (ctx, done, doc)=>{
 		const namedParams = parseParameters(func);
 		const params = namedParams.map(namedParam=>{
 			if (namedParam in ctx) return ctx[namedParam];
 			if (namedParam === 'done') return done;
 			if (namedParam === 'ctx') return ctx;
+			if (namedParam === 'doc') return doc;
 		});
 
 		const result = func(...params);

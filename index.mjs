@@ -1,18 +1,38 @@
 import {getComponents} from "./component";
+import EventEmitter from "events";
 
-export default async function router(app) {
-	const components = await getComponents();
+const events = new EventEmitter();
 
-	app.use(async (ctx, next)=>{
-		const methods = components.match(ctx.path);
-		let done = false;
+let components;
 
-		while (methods.length && !done && !ctx.headerSent) {
-			await methods.shift()(ctx, ()=>{done=true});
-		}
 
-		return next();
-	});
+getComponents().then(_components=>{
+	events.emit('loaded');
+	components = _components;
+});
 
-	return app;
+function _getComponents() {
+	return (!!components?
+		Promise.resolve(components):
+		new Promise(resolve=>{
+			const listener = ()=>{
+				process.nextTick(()=>events.removeListener('loaded', listener));
+				resolve(components);
+			};
+			events.on('loaded', listener);
+		})
+	);
+}
+
+export default async function router(ctx, next) {
+	const components = await _getComponents();
+	const methods = components.match(ctx.path);
+	let done = false;
+	const doc = {};
+
+	while (methods.length && !done && !ctx.headerSent) {
+		await methods.shift()(ctx, ()=>{done=true}, doc);
+	}
+
+	return next();
 }
