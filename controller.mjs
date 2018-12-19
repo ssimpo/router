@@ -75,7 +75,7 @@ export default class Controller {
 	}
 
 	get component() {
-		return $private.get(this, 'path');
+		return $private.get(this, 'component');
 	}
 
 	ready(cb=()=>{}) {

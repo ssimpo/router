@@ -3,12 +3,14 @@ import {getComponents} from "./component";
 export default async function router(app) {
 	const components = await getComponents();
 
-	app.all('/*', async (req, res, next)=>{
-		const methods = components.match(req.path);
+	app.use(async (ctx, next)=>{
+		const methods = components.match(ctx.path);
 		let done = false;
 
+		console.log(methods);
+
 		while (methods.length && !done) {
-			await methods.shift()(req, res, ()=>{done=true});
+			await methods.shift()(ctx, ()=>{done=true});
 		}
 
 		return next();
