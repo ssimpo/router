@@ -6,6 +6,7 @@ import flattenDeep from "lodash/flattenDeep";
 import isObject from "lodash/isObject";
 import uniq from "lodash/uniq";
 import EventEmitter from "events";
+import {parseParameters} from "../function";
 
 const controllerExtensions = ['mjs','js'];
 const xControllerName = new RegExp(`\/([^/]*?)\.(?:${controllerExtensions.join('|')})`+'$');
@@ -15,7 +16,14 @@ const $private = Private.getInstance();
 
 
 function makePromise(func) {
-	return (...params)=>{
+	return (ctx, done)=>{
+		const namedParams = parseParameters(func);
+		const params = namedParams.map(namedParam=>{
+			if (namedParam in ctx) return ctx[namedParam];
+			if (namedParam === 'done') return done;
+			if (namedParam === 'ctx') return ctx;
+		});
+
 		const result = func(...params);
 		return Promise.resolve(result);
 	}

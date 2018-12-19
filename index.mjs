@@ -7,9 +7,7 @@ export default async function router(app) {
 		const methods = components.match(ctx.path);
 		let done = false;
 
-		console.log(methods);
-
-		while (methods.length && !done) {
+		while (methods.length && !done && !ctx.headerSent) {
 			await methods.shift()(ctx, ()=>{done=true});
 		}
 
