@@ -1,6 +1,6 @@
 import {getComponents} from "./component";
 import Private from "@simpo/private";
-import Event, {EventEmitter} from "./event";
+import Event, {SingltonEventEmitter as EventEmitter} from "./event";
 
 const $private = Private.getInstance();
 
@@ -22,6 +22,8 @@ export class RouterLoadEvent extends RouterEvent {}
 export default class Router extends EventEmitter {
 	constructor(options={}) {
 		super();
+
+		$private.set(this, 'loadEventSymbol', Symbol("Load Event"));
 		$private.set(this, 'ready', false);
 		Object.keys(options).forEach(option=>$private.set(this, option, options[option]));
 		this.middleware = this.middleware.bind(this);
@@ -31,12 +33,12 @@ export default class Router extends EventEmitter {
 	async loadComponents() {
 		$private.set(this, 'components', await getComponents($private.get(this, 'paths'), this));
 		$private.set(this, 'ready', true);
-		this.emit('load', new RouterLoadEvent({router:this}));
+		this.emit(['load', $private.get(this, 'loadEventSymbol')], new RouterLoadEvent({router:this}));
 	}
 
 	getComponents() {
 		return new Promise(
-			resolve=>this.once('load', ()=>resolve($private.get(this, 'components')))
+			resolve=>this.once($private.get(this, 'loadEventSymbol'), ()=>resolve($private.get(this, 'components')))
 		);
 	}
 

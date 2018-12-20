@@ -6,7 +6,7 @@ import flattenDeep from "lodash/flattenDeep";
 import isObject from "lodash/isObject";
 import isFunction from "lodash/isFunction";
 import uniq from "lodash/uniq";
-import Event, {EventEmitter} from "./event";
+import Event, {SingltonEventEmitter as EventEmitter} from "./event";
 import {parseParameters} from "../function";
 
 const controllerExtensions = ['mjs','js'];
@@ -78,13 +78,12 @@ function getControllerMethod(func, controller) {
 export default class Controller extends EventEmitter {
 	constructor({name, path, component}) {
 		super();
+
+		$private.set(this, 'loadEventSymbol', Symbol("Load Event"));
+		$private.set(this, 'readyEventSymbol', Symbol("Ready Event"));
 		this.init({name, path, component});
 		this.setControllerLoaded();
 		this.loadControlers(path);
-	}
-
-	static get EVENTS() {
-		return ['ready', 'load', 'routing'];
 	}
 
 	init({name, path, component}) {
@@ -97,14 +96,14 @@ export default class Controller extends EventEmitter {
 
 	async loadControlers(path) {
 		const controller = await import(path);
-		this.emit('load', new ControllerLoadEvent({controller:this}));
+		this.emit(['load', $private.get(this, 'loadEventSymbol')], new ControllerLoadEvent({controller:this}));
 		$private.set(this, 'controller', Object.assign({}, ...Object.keys(controller).map(methodName=>(
 			{[methodName]:getControllerMethod(controller[methodName], this)}
 		))));
 	}
 
 	setControllerLoaded() {
-		this.once('load', ()=>{
+		this.once($private.get(this, 'loadEventSymbol'), ()=>{
 			$private.set(this, 'controllerLoaded', true);
 			this.setReady();
 		});
@@ -113,7 +112,7 @@ export default class Controller extends EventEmitter {
 	setReady() {
 		if (!$private.get(this, 'controllerLoaded', false)) return undefined;
 		$private.set(this, 'ready', true);
-		this.emit('ready', new ControllerReadyEvent({controller:this}));
+		this.emit(['ready', $private.get(this, 'readyEventSymbol')], new ControllerReadyEvent({controller:this}));
 	}
 
 	getMethod(methodName) {
@@ -135,7 +134,7 @@ export default class Controller extends EventEmitter {
 
 	ready(cb=()=>{}) {
 		if ($private.get(this, 'ready', false)) cb(this);
-		this.once('ready', ()=>cb(this));
+		this.once($private.get(this, 'readyEventSymbol'), ()=>cb(this));
 	}
 }
 
@@ -149,9 +148,6 @@ export async function getControllers(paths, componentName, emitter={emit:()=>{}}
 	uniq(flattenDeep(controllerPaths)).map(controllerPath=>{
 		const [, name] = controllerPath.match(xControllerName);
 		controllers[name] = new Controller({name, path:controllerPath, component:componentName, emitter});
-		Controller.EVENTS.forEach(eventName=>
-			controllers[name].on(eventName, (...params)=>emitter.emit(eventName, ...params))
-		);
 	});
 
 	return controllers;

@@ -2,7 +2,7 @@ import Private from "@simpo/private";
 import {getDirectories} from "../fs";
 import {getControllers} from "./controller";
 import uniq from "lodash/uniq";
-import Event, {EventEmitter} from "./event";
+import Event, {SingltonEventEmitter as EventEmitter} from "./event";
 
 const xComponentName = /\/([^/]*?)$/;
 const xTrimSlashes = /^\/|\/$/g;
@@ -31,13 +31,12 @@ export class ComponentReadyEvent extends ComponentEvent {}
 export default class Component extends EventEmitter {
 	constructor({name, path, emitter={emit:()=>{}}}) {
 		super();
+
+		$private.set(this, 'loadEventSymbol', Symbol("Load Event"));
+		$private.set(this, 'readyEventSymbol', Symbol("Ready Event"));
 		this.init({name, path});
 		this.setControllersLoaded();
 		this.loadControllers(path, name, emitter);
-	}
-
-	static get EVENTS() {
-		return ['ready', 'load'];
 	}
 
 	init({name, path}) {
@@ -50,11 +49,11 @@ export default class Component extends EventEmitter {
 	async loadControllers(path, name, emitter) {
 		const controllers = await getControllers(path, name, emitter);
 		$private.set(this, 'controllers', controllers);
-		this.emit('load', new ComponentLoadEvent({component:this}));
+		this.emit(['load', $private.get(this, 'loadEventSymbol')], new ComponentLoadEvent({component:this}));
 	}
 
 	setControllersLoaded() {
-		this.once('load', ()=>{
+		this.once($private.get(this, 'loadEventSymbol'), ()=>{
 			$private.set(this, 'controllersLoaded', true);
 			this.setReady();
 		});
@@ -63,7 +62,7 @@ export default class Component extends EventEmitter {
 	setReady() {
 		if (!$private.get(this, 'controllersLoaded', false)) return undefined;
 		$private.set(this, 'ready', true);
-		this.emit('ready', new ComponentLoadEvent({component:this}));
+		this.emit(['ready', $private.get(this, 'readyEventSymbol')], new ComponentLoadEvent({component:this}));
 	}
 
 	get controllers() {
@@ -76,7 +75,7 @@ export default class Component extends EventEmitter {
 
 	ready(cb=()=>{}) {
 		if ($private.get(this, 'ready', false)) cb(this);
-		this.once('ready', ()=>cb(this));
+		this.once($private.get(this, 'readyEventSymbol'), ()=>cb(this));
 	}
 }
 
@@ -141,9 +140,6 @@ export async function getComponents(paths='./components', emitter={emit:()=>{}})
 		componentDirs.map(componentDir=>{
 			const [, name] = componentDir.match(xComponentName);
 			components[name] = new Component({name, path:componentDir, emitter});
-			Component.EVENTS.forEach(eventName=>
-				components[name].on(eventName, (...params)=>emitter.emit(eventName, ...params))
-			);
 		});
 
 		Object.keys(components).forEach(name=>{
