@@ -15,7 +15,10 @@ export default class Router {
 	}
 
 	async loadComponents() {
-		$private.set(this, 'components', await getComponents($private.get(this, 'paths')));
+		$private.set(this, 'components', await getComponents(
+			$private.get(this, 'paths'),
+			$private.get(this, 'logger'))
+		);
 		$private.set(this, 'ready', true);
 		$private.get(this, 'events').emit('loaded');
 		process.nextTick(()=>$private.delete(this, 'events'))

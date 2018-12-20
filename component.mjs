@@ -12,22 +12,23 @@ const $private = Private.getInstance();
 
 
 export default class Component {
-	constructor({name, path}) {
-		this.init({name, path});
+	constructor({name, path, logger=null}) {
+		this.init({name, path, logger});
 		this.setControllersLoaded();
-		this.loadControllers(path, name);
+		this.loadControllers(path, name, logger);
 	}
 
-	init({name, path}) {
+	init({name, path, logger}) {
 		$private.set(this, 'name', name);
 		$private.set(this, 'path', path);
+		$private.set(this, 'logger', logger);
 		$private.set(this, 'ready', false);
 		$private.set(this, 'controllersLoaded', false);
 		$private.set(this, 'events', new EventEmitter());
 	}
 
-	async loadControllers(path, name) {
-		const controllers = await getControllers(path, name);
+	async loadControllers(path, name, logger) {
+		const controllers = await getControllers(path, name, logger);
 		$private.set(this, 'controllers', controllers);
 		$private.get(this, 'events').emit('controllersLoaded');
 	}
@@ -43,6 +44,11 @@ export default class Component {
 		if (!$private.get(this, 'controllersLoaded', false)) return undefined;
 		$private.set(this, 'ready', true);
 		$private.get(this, 'events').emit('ready');
+		const logger = $private.get(this, 'logger', null);
+		if (logger) logger.info({
+			label:'load',
+			message:`Loaded component at: ${$private.get(this, 'path')}`
+		});
 		process.nextTick(()=>$private.delete(this, 'events'));
 	}
 
@@ -99,12 +105,12 @@ class Components {
 			this.getController('index', 'index')
 		].filter(controller=>!!controller)
 		).map(
-			component=>(component.getMethod(method) || component.getMethod('default'))
+			controller=>(controller.getMethod(method) || controller.getMethod('default'))
 		).filter(method=>!!method)
 	}
 }
 
-export async function getComponents(paths='./components') {
+export async function getComponents(paths='./components', logger=null) {
 	const componentDirs = await getDirectories(paths);
 	const components = {};
 
@@ -113,7 +119,7 @@ export async function getComponents(paths='./components') {
 
 		componentDirs.map(componentDir=>{
 			const [, name] = componentDir.match(xComponentName);
-			components[name] = new Component({name, path:componentDir});
+			components[name] = new Component({name, path:componentDir, logger});
 		});
 
 		Object.keys(components).forEach(name=>{

@@ -16,8 +16,18 @@ const controllerExtensonsFilter = controllerExtensions.map(ext=>`*.${ext}`);
 const $private = Private.getInstance();
 
 
-function getControllerMethod(func) {
+function getControllerMethod(func, controller) {
+	const logger = $private.get(controller, 'logger', null);
+	const controllerName = $private.get(controller, 'name', '');
+	const componentName = $private.get(controller, 'component', '');
+	const methodName = func.name;
+
 	return (ctx, done, injectors)=>{
+		if (logger) logger.info({
+			label:'routing',
+			message:`Fired controller method (${componentName}/${controllerName}/${methodName}) for: ${ctx.path}`
+		});
+
 		const namedParams = parseParameters(func);
 		const params = namedParams.map(namedParam=>{
 			if (namedParam in ctx) return ctx[namedParam];
@@ -36,15 +46,16 @@ function getControllerMethod(func) {
 
 
 export default class Controller {
-	constructor({name, path, component}) {
-		this.init({name, path, component})
+	constructor({name, path, component, logger=null}) {
+		this.init({name, path, component,logger})
 		this.setControllerLoaded();
 		this.loadControlers(path);
 	}
 
-	init({name, path, component}) {
+	init({name, path, component, logger}) {
 		$private.set(this, 'name', name);
 		$private.set(this, 'path', path);
+		$private.set(this, 'logger', logger);
 		$private.set(this, 'component', component);
 		$private.set(this, 'ready', false);
 		$private.set(this, 'controllerLoaded', false);
@@ -53,8 +64,11 @@ export default class Controller {
 
 	async loadControlers(path) {
 		const controller = await import(path);
+		const logger = $private.get(this, 'logger', null);
+		if (logger) logger.info({label:'load', message:`Loaded controller at: ${path}`});
+
 		$private.set(this, 'controller', Object.assign({}, ...Object.keys(controller).map(methodName=>(
-			{[methodName]:getControllerMethod(controller[methodName])}
+			{[methodName]:getControllerMethod(controller[methodName], this)}
 		))));
 	}
 
@@ -95,7 +109,7 @@ export default class Controller {
 	}
 }
 
-export async function getControllers(paths, componentName) {
+export async function getControllers(paths, componentName, logger) {
 	const controllers = {};
 
 	const controllerPaths = await Promise.all(
@@ -104,7 +118,7 @@ export async function getControllers(paths, componentName) {
 
 	uniq(flattenDeep(controllerPaths)).map(controllerPath=>{
 		const [, name] = controllerPath.match(xControllerName);
-		controllers[name] = new Controller({name, path:controllerPath, component:componentName});
+		controllers[name] = new Controller({name, path:controllerPath, component:componentName, logger});
 	});
 
 	return controllers;
