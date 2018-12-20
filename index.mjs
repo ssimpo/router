@@ -1,38 +1,50 @@
 import {getComponents} from "./component";
 import EventEmitter from "events";
+import Private from "@simpo/private";
 
-let events = new EventEmitter();
-let allComponents;
+const $private = Private.getInstance();
 
 
-getComponents().then(_components=>{
-	events.emit('loaded');
-	allComponents = _components;
-	events = undefined;
-});
-
-function loadComponents() {
-	return new Promise(resolve=>{
-		const listener = ()=>{
-			process.nextTick(()=>{
-				events.removeListener('loaded', listener);
-				events = undefined;
-			});
-			resolve(allComponents);
-		};
-		events.on('loaded', listener);
-	});
-}
-
-export default async function router(ctx, next) {
-	const components = !!allComponents?allComponents:await loadComponents();
-	const methods = components.match(ctx.path);
-	let done = false;
-	const doc = {};
-
-	while (methods.length && !done && !ctx.headerSent) {
-		await methods.shift()(ctx, ()=>{done=true}, doc);
+export default class Router {
+	constructor(options={}) {
+		$private.set(this, 'events', new EventEmitter());
+		$private.set(this, 'ready', false);
+		Object.keys(options).forEach(option=>$private.set(this, option, options[option]));
+		this.middleware = this.middleware.bind(this);
+		this.loadComponents();
 	}
 
-	return next();
+	async loadComponents() {
+		$private.set(this, 'components', await getComponents());
+		$private.set(this, 'ready', true);
+		$private.get(this, 'events').emit('loaded');
+		process.nextTick(()=>$private.delete(this, 'events'))
+	}
+
+	getComponents() {
+		return new Promise(resolve=>{
+			$private.get(this, 'events').once('loaded', ()=>{
+				resolve($private.get(this, 'components'));
+			});
+		});
+	}
+
+	async middleware(ctx, next) {
+		const components = (!!$private.get(this, 'ready')?
+			$private.get(this, 'components'):
+			await this.getComponents()
+		);
+		const methods = components.match(ctx.path);
+		let done = false;
+
+		while (methods.length && !done && !ctx.headerSent) {
+			await methods.shift()(
+				ctx,
+				()=>{done=true},
+				$private.get(this, 'injectors', {})
+			);
+		}
+
+		return next();
+	}
 }

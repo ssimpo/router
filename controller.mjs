@@ -4,6 +4,7 @@ import {makeArray} from "../array";
 import {sep} from "path";
 import flattenDeep from "lodash/flattenDeep";
 import isObject from "lodash/isObject";
+import isFunction from "lodash/isFunction";
 import uniq from "lodash/uniq";
 import EventEmitter from "events";
 import {parseParameters} from "../function";
@@ -16,13 +17,16 @@ const $private = Private.getInstance();
 
 
 function getControllerMethod(func) {
-	return (ctx, done, doc)=>{
+	return (ctx, done, injectors)=>{
 		const namedParams = parseParameters(func);
 		const params = namedParams.map(namedParam=>{
 			if (namedParam in ctx) return ctx[namedParam];
+			if (injectors.hasOwnProperty(namedParam)) return (isFunction(injectors[namedParam])?
+					injectors[namedParam]():
+					injectors[namedParam]
+			);
 			if (namedParam === 'done') return done;
 			if (namedParam === 'ctx') return ctx;
-			if (namedParam === 'doc') return doc;
 		});
 
 		const result = func(...params);
