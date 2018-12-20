@@ -8,6 +8,7 @@ import isFunction from "lodash/isFunction";
 import uniq from "lodash/uniq";
 import EventEmitter from "events";
 import {parseParameters} from "../function";
+import Event from "./event";
 
 const controllerExtensions = ['mjs','js'];
 const xControllerName = new RegExp(`\/([^/]*?)\.(?:${controllerExtensions.join('|')})`+'$');
@@ -15,18 +16,48 @@ const controllerExtensonsFilter = controllerExtensions.map(ext=>`*.${ext}`);
 
 const $private = Private.getInstance();
 
+export class ControllerEvent extends Event {
+	constructor({controller}) {
+		super();
+		$private.set(this, 'controller', controller);
+	}
+
+	get path() {
+		return $private.get($private.get(this, 'controller'), 'path');
+	}
+
+	get name() {
+		return $private.get($private.get(this, 'controller'), 'name');
+	}
+
+	get component() {
+		return $private.get($private.get(this, 'controller'), 'component');
+	}
+}
+
+export class ControllerLoadEvent extends ControllerEvent {}
+export class ControllerReadyEvent extends ControllerEvent {}
+
+export class ControllerRoutingEvent extends ControllerEvent {
+	constructor({controller, ctx, method}) {
+		super({controller});
+		$private.set(this, 'requestPath', ctx.path);
+		$private.set(this, 'method', method);
+	}
+
+	get requestPath() {
+		return $private.get(this, 'requestPath');
+	}
+
+	get method() {
+		return $private.get(this, 'method');
+	}
+}
+
 
 function getControllerMethod(func, controller) {
-	const logger = $private.get(controller, 'logger', null);
-	const controllerName = $private.get(controller, 'name', '');
-	const componentName = $private.get(controller, 'component', '');
-	const methodName = func.name;
-
 	return (ctx, done, injectors)=>{
-		if (logger) logger.info({
-			label:'routing',
-			message:`Fired controller method (${componentName}/${controllerName}/${methodName}) for: ${ctx.path}`
-		});
+		controller.emit('routing', new ControllerRoutingEvent({controller, ctx, method:func.name}));
 
 		const namedParams = parseParameters(func);
 		const params = namedParams.map(namedParam=>{
@@ -45,36 +76,37 @@ function getControllerMethod(func, controller) {
 }
 
 
-export default class Controller {
-	constructor({name, path, component, logger=null}) {
-		this.init({name, path, component,logger})
+export default class Controller extends EventEmitter {
+	constructor({name, path, component}) {
+		super();
+		this.init({name, path, component});
 		this.setControllerLoaded();
 		this.loadControlers(path);
 	}
 
-	init({name, path, component, logger}) {
+	static get EVENTS() {
+		return ['ready', 'load', 'routing'];
+	}
+
+	init({name, path, component}) {
 		$private.set(this, 'name', name);
 		$private.set(this, 'path', path);
-		$private.set(this, 'logger', logger);
 		$private.set(this, 'component', component);
 		$private.set(this, 'ready', false);
 		$private.set(this, 'controllerLoaded', false);
-		$private.set(this, 'events', new EventEmitter());
 	}
 
 	async loadControlers(path) {
 		const controller = await import(path);
-		const logger = $private.get(this, 'logger', null);
-		if (logger) logger.info({label:'load', message:`Loaded controller at: ${path}`});
-
+		this.emit('load', new ControllerLoadEvent({controller:this}));
 		$private.set(this, 'controller', Object.assign({}, ...Object.keys(controller).map(methodName=>(
 			{[methodName]:getControllerMethod(controller[methodName], this)}
 		))));
 	}
 
 	setControllerLoaded() {
-		$private.get(this, 'events').once('controllerLoaded', ()=>{
-			$private.set(this, 'controllersLoaded', true);
+		this.once('load', ()=>{
+			$private.set(this, 'controllerLoaded', true);
 			this.setReady();
 		});
 	}
@@ -82,8 +114,7 @@ export default class Controller {
 	setReady() {
 		if (!$private.get(this, 'controllerLoaded', false)) return undefined;
 		$private.set(this, 'ready', true);
-		$private.get(this, 'events').emit('ready');
-		process.nextTick(()=>$private.delete(this, 'events'));
+		this.emit('ready', new ControllerReadyEvent({controller:this}));
 	}
 
 	getMethod(methodName) {
@@ -105,11 +136,11 @@ export default class Controller {
 
 	ready(cb=()=>{}) {
 		if ($private.get(this, 'ready', false)) cb(this);
-		$private.get(this, 'events').once('ready', ()=>cb(this));
+		this.once('ready', ()=>cb(this));
 	}
 }
 
-export async function getControllers(paths, componentName, logger) {
+export async function getControllers(paths, componentName, emitter={emit:()=>{}}) {
 	const controllers = {};
 
 	const controllerPaths = await Promise.all(
@@ -118,7 +149,10 @@ export async function getControllers(paths, componentName, logger) {
 
 	uniq(flattenDeep(controllerPaths)).map(controllerPath=>{
 		const [, name] = controllerPath.match(xControllerName);
-		controllers[name] = new Controller({name, path:controllerPath, component:componentName, logger});
+		controllers[name] = new Controller({name, path:controllerPath, component:componentName, emitter});
+		Controller.EVENTS.forEach(eventName=>
+			controllers[name].on(eventName, (...params)=>emitter.emit(eventName, ...params))
+		);
 	});
 
 	return controllers;

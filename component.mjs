@@ -3,6 +3,7 @@ import {getDirectories} from "../fs";
 import EventEmitter from "events";
 import {getControllers} from "./controller";
 import uniq from "lodash/uniq";
+import Event from "./event";
 
 const xComponentName = /\/([^/]*?)$/;
 const xTrimSlashes = /^\/|\/$/g;
@@ -10,31 +11,51 @@ const xTrimSlashes = /^\/|\/$/g;
 const $private = Private.getInstance();
 
 
-
-export default class Component {
-	constructor({name, path, logger=null}) {
-		this.init({name, path, logger});
-		this.setControllersLoaded();
-		this.loadControllers(path, name, logger);
+export class ComponentEvent extends Event {
+	constructor({component}) {
+		super();
+		$private.set(this, 'component', component);
 	}
 
-	init({name, path, logger}) {
+	get path() {
+		return $private.get($private.get(this, 'component'), 'path');
+	}
+
+	get name() {
+		return $private.get($private.get(this, 'component'), 'name');
+	}
+}
+
+export class ComponentLoadEvent extends ComponentEvent {}
+export class ComponentReadyEvent extends ComponentEvent {}
+
+export default class Component extends EventEmitter {
+	constructor({name, path, emitter={emit:()=>{}}}) {
+		super();
+		this.init({name, path});
+		this.setControllersLoaded();
+		this.loadControllers(path, name, emitter);
+	}
+
+	static get EVENTS() {
+		return ['ready', 'load'];
+	}
+
+	init({name, path}) {
 		$private.set(this, 'name', name);
 		$private.set(this, 'path', path);
-		$private.set(this, 'logger', logger);
 		$private.set(this, 'ready', false);
 		$private.set(this, 'controllersLoaded', false);
-		$private.set(this, 'events', new EventEmitter());
 	}
 
-	async loadControllers(path, name, logger) {
-		const controllers = await getControllers(path, name, logger);
+	async loadControllers(path, name, emitter) {
+		const controllers = await getControllers(path, name, emitter);
 		$private.set(this, 'controllers', controllers);
-		$private.get(this, 'events').emit('controllersLoaded');
+		this.emit('load', new ComponentLoadEvent({component:this}));
 	}
 
 	setControllersLoaded() {
-		$private.get(this, 'events').once('controllersLoaded', ()=>{
+		this.once('load', ()=>{
 			$private.set(this, 'controllersLoaded', true);
 			this.setReady();
 		});
@@ -43,13 +64,7 @@ export default class Component {
 	setReady() {
 		if (!$private.get(this, 'controllersLoaded', false)) return undefined;
 		$private.set(this, 'ready', true);
-		$private.get(this, 'events').emit('ready');
-		const logger = $private.get(this, 'logger', null);
-		if (logger) logger.info({
-			label:'load',
-			message:`Loaded component at: ${$private.get(this, 'path')}`
-		});
-		process.nextTick(()=>$private.delete(this, 'events'));
+		this.emit('ready', new ComponentLoadEvent({component:this}));
 	}
 
 	get controllers() {
@@ -62,13 +77,20 @@ export default class Component {
 
 	ready(cb=()=>{}) {
 		if ($private.get(this, 'ready', false)) cb(this);
-		$private.get(this, 'events').once('ready', ()=>cb(this));
+		this.once('ready', ()=>cb(this));
 	}
 }
 
-class Components {
+class Components extends EventEmitter {
 	constructor(components) {
+		super();
 		$private.set(this, 'components', components);
+	}
+
+	init(components) {
+		Object.keys(components).forEach(componentName=>{
+			const component = components[componentName];
+		})
 	}
 
 	get components() {
@@ -110,7 +132,7 @@ class Components {
 	}
 }
 
-export async function getComponents(paths='./components', logger=null) {
+export async function getComponents(paths='./components', emitter={emit:()=>{}}) {
 	const componentDirs = await getDirectories(paths);
 	const components = {};
 
@@ -119,7 +141,10 @@ export async function getComponents(paths='./components', logger=null) {
 
 		componentDirs.map(componentDir=>{
 			const [, name] = componentDir.match(xComponentName);
-			components[name] = new Component({name, path:componentDir, logger});
+			components[name] = new Component({name, path:componentDir, emitter});
+			Component.EVENTS.forEach(eventName=>
+				components[name].on(eventName, (...params)=>emitter.emit(eventName, ...params))
+			);
 		});
 
 		Object.keys(components).forEach(name=>{

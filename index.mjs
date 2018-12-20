@@ -1,13 +1,28 @@
 import {getComponents} from "./component";
 import EventEmitter from "events";
 import Private from "@simpo/private";
+import Event from "./event";
 
 const $private = Private.getInstance();
 
+export class RouterEvent extends Event {
+	constructor({router}) {
+		super();
+		$private.set(this, 'router', router);
+	}
 
-export default class Router {
+	get paths() {
+		return $private.get($private.get(this, 'router'), 'paths');
+	}
+}
+
+export class RouterLoadEvent extends RouterEvent {}
+
+
+
+export default class Router extends EventEmitter {
 	constructor(options={}) {
-		$private.set(this, 'events', new EventEmitter());
+		super();
 		$private.set(this, 'ready', false);
 		Object.keys(options).forEach(option=>$private.set(this, option, options[option]));
 		this.middleware = this.middleware.bind(this);
@@ -15,22 +30,15 @@ export default class Router {
 	}
 
 	async loadComponents() {
-		$private.set(this, 'components', await getComponents(
-			$private.get(this, 'paths'),
-			$private.get(this, 'logger'))
-		);
+		$private.set(this, 'components', await getComponents($private.get(this, 'paths'), this));
 		$private.set(this, 'ready', true);
-		$private.get(this, 'events').emit('loaded');
-		process.nextTick(()=>$private.delete(this, 'events'))
+		this.emit('load', new RouterLoadEvent({router:this}));
 	}
 
 	getComponents() {
-		return new Promise(resolve=>{
-			$private.get(this, 'events').once(
-				'loaded',
-				()=>resolve($private.get(this, 'components'))
-			);
-		});
+		return new Promise(
+			resolve=>this.once('load', ()=>resolve($private.get(this, 'components')))
+		);
 	}
 
 	async middleware(ctx, next) {
