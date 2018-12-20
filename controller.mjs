@@ -6,9 +6,8 @@ import flattenDeep from "lodash/flattenDeep";
 import isObject from "lodash/isObject";
 import isFunction from "lodash/isFunction";
 import uniq from "lodash/uniq";
-import EventEmitter from "events";
+import Event, {EventEmitter} from "./event";
 import {parseParameters} from "../function";
-import Event from "./event";
 
 const controllerExtensions = ['mjs','js'];
 const xControllerName = new RegExp(`\/([^/]*?)\.(?:${controllerExtensions.join('|')})`+'$');

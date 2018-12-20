@@ -1,7 +1,6 @@
 import {getComponents} from "./component";
-import EventEmitter from "events";
 import Private from "@simpo/private";
-import Event from "./event";
+import Event, {EventEmitter} from "./event";
 
 const $private = Private.getInstance();
 

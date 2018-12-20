@@ -1,9 +1,8 @@
 import Private from "@simpo/private";
 import {getDirectories} from "../fs";
-import EventEmitter from "events";
 import {getControllers} from "./controller";
 import uniq from "lodash/uniq";
-import Event from "./event";
+import Event, {EventEmitter} from "./event";
 
 const xComponentName = /\/([^/]*?)$/;
 const xTrimSlashes = /^\/|\/$/g;
