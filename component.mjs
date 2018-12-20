@@ -29,14 +29,14 @@ export class ComponentLoadEvent extends ComponentEvent {}
 export class ComponentReadyEvent extends ComponentEvent {}
 
 export default class Component extends EventEmitter {
-	constructor({name, path, emitter={emit:()=>{}}}) {
-		super();
+	constructor({name, path, $ref}) {
+		super({name, path, $ref});
 
 		$private.set(this, 'loadEventSymbol', Symbol("Load Event"));
 		$private.set(this, 'readyEventSymbol', Symbol("Ready Event"));
 		this.init({name, path});
 		this.setControllersLoaded();
-		this.loadControllers(path, name, emitter);
+		this.loadControllers(path, name, $ref);
 	}
 
 	init({name, path}) {
@@ -46,8 +46,8 @@ export default class Component extends EventEmitter {
 		$private.set(this, 'controllersLoaded', false);
 	}
 
-	async loadControllers(path, name, emitter) {
-		const controllers = await getControllers(path, name, emitter);
+	async loadControllers(path, name, $ref) {
+		const controllers = await getControllers(path, name, $ref);
 		$private.set(this, 'controllers', controllers);
 		this.emit(['load', $private.get(this, 'loadEventSymbol')], new ComponentLoadEvent({component:this}));
 	}
@@ -62,7 +62,7 @@ export default class Component extends EventEmitter {
 	setReady() {
 		if (!$private.get(this, 'controllersLoaded', false)) return undefined;
 		$private.set(this, 'ready', true);
-		this.emit(['ready', $private.get(this, 'readyEventSymbol')], new ComponentLoadEvent({component:this}));
+		this.emit(['ready', $private.get(this, 'readyEventSymbol')], new ComponentReadyEvent({component:this}));
 	}
 
 	get controllers() {
@@ -130,7 +130,7 @@ class Components extends EventEmitter {
 	}
 }
 
-export async function getComponents(paths='./components', emitter={emit:()=>{}}) {
+export async function getComponents(paths='./components', $ref) {
 	const componentDirs = await getDirectories(paths);
 	const components = {};
 
@@ -139,7 +139,7 @@ export async function getComponents(paths='./components', emitter={emit:()=>{}})
 
 		componentDirs.map(componentDir=>{
 			const [, name] = componentDir.match(xComponentName);
-			components[name] = new Component({name, path:componentDir, emitter});
+			components[name] = new Component({name, path:componentDir, $ref});
 		});
 
 		Object.keys(components).forEach(name=>{

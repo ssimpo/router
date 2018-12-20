@@ -1,4 +1,5 @@
 import EventEmitterNode from "events";
+import Private from "@simpo/private";
 
 export default class Event {}
 
@@ -38,66 +39,75 @@ export class EventEmitter extends EventEmitterNode {
 	}
 }
 
-const singletonEmitter = new EventEmitter();
-
+const $private = Private.getInstance();
 export class SingltonEventEmitter {
+	constructor(options={}) {
+		const {$ref=this} = options;
+		if (!$private.get($ref, 'singleton')) $private.set($ref, 'singleton', new EventEmitter());
+		$private.set(this, '$ref', $ref);
+	}
+
+	getSingleton() {
+		return $private.get($private.get(this, '$ref'), 'singleton');
+	}
+
 	addListener(...params) {
-		return singletonEmitter.addListener(...params);
+		return this.getSingleton().addListener(...params);
 	}
 
 	emit(...params) {
-		return singletonEmitter.emit(...params);
+		return this.getSingleton().emit(...params);
 	}
 
 	eventNames(...params) {
-		return singletonEmitter.eventNames(...params);
+		return this.getSingleton().eventNames(...params);
 	}
 
 	getMaxListeners(...params) {
-		return singletonEmitter.getMaxListeners(...params);
+		return this.getSingleton().getMaxListeners(...params);
 	}
 
 	listenerCount(...params) {
-		return singletonEmitter.listenerCount(...params);
+		return this.getSingleton().listenerCount(...params);
 	}
 
 	listeners(...params) {
-		return singletonEmitter.listeners(...params);
+		return this.getSingleton().listeners(...params);
 	}
 
 	off(...params) {
-		return singletonEmitter.off(...params);
+		return this.getSingleton().off(...params);
 	}
 
 	on(...params) {
-		return singletonEmitter.on(...params);
+		return this.getSingleton().on(...params);
 	}
 
 	once(...params) {
-		return singletonEmitter.once(...params);
+		return this.getSingleton().once(...params);
 	}
 
 	prependListener(...params) {
-		return singletonEmitter.prependListener(...params);
+		return this.getSingleton().prependListener(...params);
 	}
 
 	prependOnceListener(...params) {
-		return singletonEmitter.prependOnceListener(...params);
+		return this.getSingleton().prependOnceListener(...params);
 	}
 
 	removeAllListeners(...params) {
-		return singletonEmitter.removeAllListeners(...params);
+		return this.getSingleton().removeAllListeners(...params);
 	}
 
 	removeListener(...params) {
-		return singletonEmitter.removeListener(...params);
+		return this.getSingleton().removeListener(...params);
 	}
 
 	setMaxListeners(...params) {
-		return singletonEmitter.setMaxListeners(...params);
+		return this.getSingleton().setMaxListeners(...params);
 	}
 
 	rawListeners(...params) {
-		return singletonEmitter.rawListeners(...params);
+		return this.getSingleton().rawListeners(...params);
 	}
 }

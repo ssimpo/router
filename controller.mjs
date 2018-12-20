@@ -76,8 +76,8 @@ function getControllerMethod(func, controller) {
 
 
 export default class Controller extends EventEmitter {
-	constructor({name, path, component}) {
-		super();
+	constructor({name, path, component, $ref}) {
+		super({name, path, component, $ref});
 
 		$private.set(this, 'loadEventSymbol', Symbol("Load Event"));
 		$private.set(this, 'readyEventSymbol', Symbol("Ready Event"));
@@ -138,7 +138,7 @@ export default class Controller extends EventEmitter {
 	}
 }
 
-export async function getControllers(paths, componentName, emitter={emit:()=>{}}) {
+export async function getControllers(paths, componentName, $ref) {
 	const controllers = {};
 
 	const controllerPaths = await Promise.all(
@@ -147,7 +147,7 @@ export async function getControllers(paths, componentName, emitter={emit:()=>{}}
 
 	uniq(flattenDeep(controllerPaths)).map(controllerPath=>{
 		const [, name] = controllerPath.match(xControllerName);
-		controllers[name] = new Controller({name, path:controllerPath, component:componentName, emitter});
+		controllers[name] = new Controller({name, path:controllerPath, component:componentName, $ref});
 	});
 
 	return controllers;

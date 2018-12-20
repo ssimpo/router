@@ -20,7 +20,7 @@ export class RouterLoadEvent extends RouterEvent {}
 
 
 export default class Router extends EventEmitter {
-	constructor(options={}) {
+	constructor(options={$ref:this}) {
 		super();
 
 		$private.set(this, 'loadEventSymbol', Symbol("Load Event"));
