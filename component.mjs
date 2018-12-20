@@ -10,38 +10,40 @@ const xTrimSlashes = /^\/|\/$/g;
 const $private = Private.getInstance();
 
 
-function _setReady() {
-	if (!$private.get(this, 'controllersLoaded', false)) return undefined;
-	$private.set(this, 'ready', true);
-	const events = $private.get(this, 'events');
-	events.emit('ready');
-}
 
 export default class Component {
 	constructor({name, path}) {
-		const events = new EventEmitter();
-		const setReady = _setReady.bind(this);
+		this.init({name, path});
+		this.setControllersLoaded();
+		this.loadControllers(path, name);
+	}
 
+	init({name, path}) {
 		$private.set(this, 'name', name);
 		$private.set(this, 'path', path);
-		$private.set(this, 'priority', ((name==='index')?4:1));
 		$private.set(this, 'ready', false);
 		$private.set(this, 'controllersLoaded', false);
-		$private.set(this, 'events', events);
+		$private.set(this, 'events', new EventEmitter());
+	}
 
-		events.on('controllersLoaded', ()=>{
+	async loadControllers(path, name) {
+		const controllers = await getControllers(path, name);
+		$private.set(this, 'controllers', controllers);
+		$private.get(this, 'events').emit('controllersLoaded');
+	}
+
+	setControllersLoaded() {
+		$private.get(this, 'events').once('controllersLoaded', ()=>{
 			$private.set(this, 'controllersLoaded', true);
-			setReady()
-		});
-
-		getControllers(path, name).then(controllers=>{
-			$private.set(this, 'controllers', controllers);
-			events.emit('controllersLoaded');
+			this.setReady();
 		});
 	}
 
-	get priority() {
-		return $private.get(this, 'priority', 4);
+	setReady() {
+		if (!$private.get(this, 'controllersLoaded', false)) return undefined;
+		$private.set(this, 'ready', true);
+		$private.get(this, 'events').emit('ready');
+		process.nextTick(()=>$private.delete(this, 'events'));
 	}
 
 	get controllers() {
@@ -53,15 +55,8 @@ export default class Component {
 	}
 
 	ready(cb=()=>{}) {
-		if ($private.get(this, 'name', false)) {
-			cb(this);
-			return ()=>{};
-		}
-
-		const listener = ()=>cb(this);
-		const events = $private.get(this, 'events');
-		events.on('ready', listener);
-		return ()=>events.removeListener('ready', listener);
+		if ($private.get(this, 'ready', false)) cb(this);
+		$private.get(this, 'events').once('ready', ()=>cb(this));
 	}
 }
 
@@ -70,18 +65,18 @@ class Components {
 		$private.set(this, 'components', components);
 	}
 
-	all() {
+	get components() {
 		return $private.get(this, 'components', {});
 	}
 
 	getComponent(component) {
-		return this.all()[component];
+		return this.components[component];
 	}
 
-	getController(component, controller) {
-		const components = $private.get(this, 'components', {});
-		if (!components.hasOwnProperty(component)) return undefined;
-		return components[component].controllers[controller];
+	getController(componentName, controllerName) {
+		const component = this.getComponent(componentName);
+		if (!component) return undefined;
+		return component.controllers[controllerName];
 	}
 
 	match(path) {
@@ -122,9 +117,8 @@ export async function getComponents(paths='./components') {
 		});
 
 		Object.keys(components).forEach(name=>{
-			const off = components[name].ready(()=>{
+			components[name].ready(()=>{
 				ready++;
-				process.nextTick(()=>off());
 				if (ready >= componentDirs.length) resolve(new Components(components));
 			});
 		});

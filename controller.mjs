@@ -15,7 +15,7 @@ const controllerExtensonsFilter = controllerExtensions.map(ext=>`*.${ext}`);
 const $private = Private.getInstance();
 
 
-function makePromise(func) {
+function getControllerMethod(func) {
 	return (ctx, done, doc)=>{
 		const namedParams = parseParameters(func);
 		const params = namedParams.map(namedParam=>{
@@ -30,40 +30,42 @@ function makePromise(func) {
 	}
 }
 
-function _setReady() {
-	if (!$private.get(this, 'controllerLoaded', false)) return undefined;
-	$private.set(this, 'ready', true);
-	const events = $private.get(this, 'events');
-	events.emit('ready');
-}
 
 export default class Controller {
 	constructor({name, path, component}) {
-		const events = new EventEmitter();
-		const setReady = _setReady.bind(this);
+		this.init({name, path, component})
+		this.setControllerLoaded();
+		this.loadControlers(path);
+	}
 
+	init({name, path, component}) {
 		$private.set(this, 'name', name);
 		$private.set(this, 'path', path);
-		$private.set(this, 'priority', ((name==='index')?2:1));
 		$private.set(this, 'component', component);
 		$private.set(this, 'ready', false);
 		$private.set(this, 'controllerLoaded', false);
-		$private.set(this, 'events', events);
+		$private.set(this, 'events', new EventEmitter());
+	}
 
-		events.on('controllerLoaded', ()=>{
+	async loadControlers(path) {
+		const controller = await import(path);
+		$private.set(this, 'controller', Object.assign({}, ...Object.keys(controller).map(methodName=>(
+			{[methodName]:getControllerMethod(controller[methodName])}
+		))));
+	}
+
+	setControllerLoaded() {
+		$private.get(this, 'events').once('controllerLoaded', ()=>{
 			$private.set(this, 'controllersLoaded', true);
-			setReady();
+			this.setReady();
 		});
+	}
 
-		import(path).then(controller=>{
-			const _controller = {};
-
-			Object.keys(controller).forEach(methodName=>
-				_controller[methodName] = makePromise(controller[methodName])
-			);
-
-			$private.set(this, 'controller', _controller)
-		});
+	setReady() {
+		if (!$private.get(this, 'controllerLoaded', false)) return undefined;
+		$private.set(this, 'ready', true);
+		$private.get(this, 'events').emit('ready');
+		process.nextTick(()=>$private.delete(this, 'events'));
 	}
 
 	getMethod(methodName) {
@@ -79,33 +81,21 @@ export default class Controller {
 		return $private.get(this, 'path');
 	}
 
-	get priority() {
-		return $private.get(this, 'priority', 2);
-	}
-
 	get component() {
 		return $private.get(this, 'component');
 	}
 
 	ready(cb=()=>{}) {
-		if ($private.get(this, 'name', false)) {
-			cb(this);
-			return ()=>{};
-		}
-
-		const listener = ()=>cb(this);
-		const events = $private.get(this, 'events');
-		events.on('ready', listener);
-		return ()=>events.removeListener('ready', listener);
+		if ($private.get(this, 'ready', false)) cb(this);
+		$private.get(this, 'events').once('ready', ()=>cb(this));
 	}
 }
 
 export async function getControllers(paths, componentName) {
-	const _paths = makeArray(paths);
 	const controllers = {};
 
 	const controllerPaths = await Promise.all(
-		_paths.map(async (path)=>getFiles(`${path}${sep}controllers`, controllerExtensonsFilter))
+		makeArray(paths).map(async (path)=>getFiles(`${path}${sep}controllers`, controllerExtensonsFilter))
 	);
 
 	uniq(flattenDeep(controllerPaths)).map(controllerPath=>{
