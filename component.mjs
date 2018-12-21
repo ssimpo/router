@@ -84,14 +84,21 @@ export class Component extends EventEmitter {
 
 	addController(controller, name=controller.name) {
 		const controllers = $private.get(this, 'controllers');
-		this.mirror(controller.constructor.EVENTS, controller);
+		let unmirror = this.mirror(controller.constructor.EVENTS, controller);
 		controllers[name] = controller;
 		$private.set(this, 'controllers', controllers);
+		$private.set(this, `controllers.unmirror.${name}`, ()=>{
+			unmirror();
+			$private.delete(this, `controllers.unmirror.${name}`);
+			unmirror = undefined;
+		});
 	}
 
 	deleteController(controller, name=controller.name) {
 		const controllers = $private.get(this, 'controllers');
 		delete controllers[name];
+		const unmirror = $private.get(this, `controllers.unmirror.${name}`, ()=>{});
+		unmirror();
 		$private.set(this, 'controllers', controllers);
 	}
 
@@ -144,18 +151,25 @@ export class ComponentCollection extends EventEmitter {
 	add(component, name=component.name) {
 		const components = $private.get(this, 'components', {});
 		components[name] = component;
-		this.mirror(component.constructor.EVENTS, component);
+		let unmirror = this.mirror(component.constructor.EVENTS, component);
+		$private.set(this, `component.unmirror.${name}`, ()=>{
+			unmirror();
+			$private.delete(this, `component.unmirror.${name}`);
+			unmirror = undefined;
+		});
 		$private.set(this, 'components', components);
 	}
 
-	delete(component) {
+	delete(component, name=component.name) {
 		const components = $private.get(this, 'components', {});
-		delete components[component.name];
+		delete components[name];
+		const unmirror = $private.set(this, `component.unmirror.${name}`, ()=>{});
+		unmirror();
 		$private.set(this, 'components', components);
 	}
 
-	getComponent(component) {
-		return this.components[component];
+	getComponent(componentName) {
+		return this.components[componentName];
 	}
 
 	getController(componentName, controllerName) {

@@ -16,24 +16,35 @@ export class EventEmitter extends EventEmitterNode {
 	}
 
 	emit(eventNames, ...params) {
-		/*makeArray(eventNames).forEach(eventName=>{
-			if (!isSymbol(eventName)) {
-				console.log(`${eventName} with ${params[0].constructor.name} on ${this.constructor.name}`);
-			}
-		});*/
 		return this.bindEmitterAction(eventNames, 'emit', ...params);
 	}
 
 	mirror(eventNames, source) {
-		makeArray(eventNames).forEach(
-			eventName=>source.on(eventName, (...params)=>this.emit(eventName, ...params))
-		);
+		let listeners = [];
+		makeArray(eventNames).forEach(eventName=>{
+			const listener = (...params)=>this.emit(eventName, ...params);
+			source.on(eventName, listener);
+			listeners.push([eventName, listener]);
+		});
+
+		return ()=>{
+			listeners.forEach(([eventName, listener])=>source.removeListener(eventName, listener));
+			listeners = [];
+		}
 	}
 
 	mirrorTo(eventNames, destination) {
-		makeArray(eventNames).forEach(
-			eventName=>this.on(eventName, (...params)=>destination.emit(eventName, ...params))
-		);
+		let listeners = [];
+		makeArray(eventNames).forEach(eventName=>{
+			const listener = (...params)=>destination.emit(eventName, ...params);
+			this.on(eventName, listener);
+			listeners.push([eventName, listener]);
+		});
+
+		return ()=>{
+			listeners.forEach(([eventName, listener])=>source.removeListener(eventName, listener));
+			listeners = [];
+		}
 	}
 
 	on(eventNames, listener) {
