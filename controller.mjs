@@ -6,8 +6,9 @@ import flattenDeep from "lodash/flattenDeep";
 import isObject from "lodash/isObject";
 import isFunction from "lodash/isFunction";
 import uniq from "lodash/uniq";
-import Event, {SingltonEventEmitter as EventEmitter} from "./event";
+import Event, {EventEmitter} from "./event";
 import {parseParameters} from "../function";
+import {ProcedureError, codes as Error_Codes} from "./error";
 
 const controllerExtensions = ['mjs','js'];
 const xControllerName = new RegExp(`\/([^/]*?)\.(?:${controllerExtensions.join('|')})`+'$');
@@ -76,22 +77,36 @@ function getControllerMethod(func, controller) {
 
 
 export default class Controller extends EventEmitter {
-	constructor({name, path, component, $ref}) {
-		super({name, path, component, $ref});
+	constructor({name, path, component}) {
+		super({name, path, component});
 
+		$private.set(this, 'init', false);
 		$private.set(this, 'loadEventSymbol', Symbol("Load Event"));
 		$private.set(this, 'readyEventSymbol', Symbol("Ready Event"));
+		$private.set(this, 'EVENTS', new Set());
+
 		this.init({name, path, component});
 		this.setControllerLoaded();
 		this.loadControlers(path);
 	}
 
 	init({name, path, component}) {
+		if ($private.get(this, 'init', false)) throw new ProcedureError(Error_Codes.INSTANCE_INIT_CALLED_TWICE);
+		$private.set(this, 'init', true);
+
 		$private.set(this, 'name', name);
 		$private.set(this, 'path', path);
 		$private.set(this, 'component', component);
 		$private.set(this, 'ready', false);
 		$private.set(this, 'controllerLoaded', false);
+	}
+
+	static get EVENTS() {
+		return ['ready', 'load'];
+	}
+
+	get EVENTS() {
+		return [...this.constructor.EVENTS, ...$private.get(this, 'EVENTS')];
 	}
 
 	async loadControlers(path) {
@@ -138,7 +153,7 @@ export default class Controller extends EventEmitter {
 	}
 }
 
-export async function getControllers(paths, componentName, $ref) {
+export async function getControllers(paths, componentName) {
 	const controllers = {};
 
 	const controllerPaths = await Promise.all(
@@ -147,7 +162,7 @@ export async function getControllers(paths, componentName, $ref) {
 
 	uniq(flattenDeep(controllerPaths)).map(controllerPath=>{
 		const [, name] = controllerPath.match(xControllerName);
-		controllers[name] = new Controller({name, path:controllerPath, component:componentName, $ref});
+		controllers[name] = new Controller({name, path:controllerPath, component:componentName});
 	});
 
 	return controllers;

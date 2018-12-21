@@ -1,8 +1,10 @@
-import {getComponents} from "./component";
+import {ComponentCollection} from "./component";
 import Private from "@simpo/private";
-import Event, {SingltonEventEmitter as EventEmitter} from "./event";
+import Event, {EventEmitter} from "./event";
+import {ProcedureError, codes as Error_Codes} from "./error";
 
 const $private = Private.getInstance();
+
 
 export class RouterEvent extends Event {
 	constructor({router}) {
@@ -20,19 +22,27 @@ export class RouterLoadEvent extends RouterEvent {}
 
 
 export default class Router extends EventEmitter {
-	constructor(options={$ref:this}) {
+	constructor(options={}) {
 		super();
 
 		$private.set(this, 'loadEventSymbol', Symbol("Load Event"));
 		$private.set(this, 'ready', false);
+		$private.set(this, 'init', false);
 		Object.keys(options).forEach(option=>$private.set(this, option, options[option]));
 		this.middleware = this.middleware.bind(this);
-		this.loadComponents();
 	}
 
-	async loadComponents() {
-		$private.set(this, 'components', await getComponents($private.get(this, 'paths'), this));
-		$private.set(this, 'ready', true);
+	init(paths) {
+		if ($private.get(this, 'init', false)) throw new ProcedureError(Error_Codes.INSTANCE_INIT_CALLED_TWICE);
+		$private.set(this, 'init', true);
+		this.load(paths);
+	}
+
+	async load(paths) {
+		const components = new ComponentCollection();
+		$private.set(this, 'components', components);
+		this.mirror(components.EVENTS, components);
+		await components.load(paths);
 		this.emit(['load', $private.get(this, 'loadEventSymbol')], new RouterLoadEvent({router:this}));
 	}
 
@@ -43,13 +53,11 @@ export default class Router extends EventEmitter {
 	}
 
 	async middleware(ctx, next) {
-		const components = (!!$private.get(this, 'ready')?
-			$private.get(this, 'components'):
-			await this.getComponents()
-		);
+		const ready = $private.get(this, 'ready');
+		const components = (!!ready? $private.get(this, 'components'): await this.getComponents());
 		const methods = components.match(ctx.path);
-		let done = false;
 
+		let done = false;
 		while (methods.length && !done && !ctx.headerSent) {
 			await methods.shift()(
 				ctx,
