@@ -1,6 +1,6 @@
 import Private from "@simpo/private";
 import {getDirectories} from "../fs";
-import {getControllers} from "./controller";
+import {getControllers, Controller} from "./controller";
 import uniq from "lodash/uniq";
 import Event, {EventEmitter} from "./event";
 import {ProcedureError, codes as Error_Codes} from "./error";
@@ -36,7 +36,7 @@ export class Component extends EventEmitter {
 		$private.set(this, 'init', false);
 		$private.set(this, 'loadEventSymbol', Symbol("Load Event"));
 		$private.set(this, 'readyEventSymbol', Symbol("Ready Event"));
-		$private.set(this, 'EVENTS', new Set());
+		$private.set(this, 'EVENTS', new Set([...Controller.EVENTS]));
 
 		this.setControllersLoaded();
 		this.init(options);
@@ -59,17 +59,13 @@ export class Component extends EventEmitter {
 	}
 
 	static get EVENTS() {
-		return ['ready', 'load'];
-	}
-
-	get EVENTS() {
-		return [...this.constructor.EVENTS, ...$private.get(this, 'EVENTS')];
+		return uniq(['ready', 'load', ...Controller.EVENTS]);
 	}
 
 	async loadControllers(path, name) {
 		const controllers = await getControllers(path, name);
 		$private.set(this, 'controllers', controllers);
-		Object.values(controllers).forEach(controller=>this.mirror(controller.EVENTS, controller));
+		Object.values(controllers).forEach(controller=>this.mirror(controller.constructor.EVENTS, controller));
 		this.emit(['load', $private.get(this, 'loadEventSymbol')], new ComponentLoadEvent({component:this}));
 	}
 
@@ -99,15 +95,10 @@ export class ComponentCollection extends EventEmitter {
 	constructor(config={}) {
 		super(config);
 		$private.set(this, 'components', {});
-		$private.set(this, 'EVENTS', new Set());
 	}
 
 	static get EVENTS() {
-		return ['ready', 'load'];
-	}
-
-	get EVENTS() {
-		return [...this.constructor.EVENTS, ...$private.get(this, 'EVENTS')];
+		return uniq(['ready', 'load', ...Controller.EVENTS, ...Component.EVENTS]);
 	}
 
 	get components() {
@@ -119,7 +110,7 @@ export class ComponentCollection extends EventEmitter {
 		return Promise.all(componentDirs.map(componentDir=>{
 			const [, name] = componentDir.match(xComponentName);
 			const component = new Component();
-			this.add(component);
+			this.add(component, name);
 			return component.init({name, path:componentDir});
 		}));
 	}
@@ -127,7 +118,7 @@ export class ComponentCollection extends EventEmitter {
 	add(component, name=component.name) {
 		const components = $private.get(this, 'components', {});
 		components[name] = component;
-		this.mirror(component.EVENTS, component);
+		this.mirror(component.constructor.EVENTS, component);
 		$private.set(this, 'components', components);
 	}
 

@@ -18,6 +18,7 @@ export class RouterEvent extends Event {
 }
 
 export class RouterLoadEvent extends RouterEvent {}
+export class RouterReadyEvent extends RouterEvent {}
 
 
 
@@ -30,6 +31,7 @@ export default class Router extends EventEmitter {
 		$private.set(this, 'init', false);
 		Object.keys(options).forEach(option=>$private.set(this, option, options[option]));
 		this.middleware = this.middleware.bind(this);
+		this.once($private.get(this, 'loadEventSymbol'), this.onReady);
 	}
 
 	init(paths) {
@@ -38,10 +40,15 @@ export default class Router extends EventEmitter {
 		this.load(paths);
 	}
 
+	onReady() {
+		$private.set(this, 'ready', true);
+		this.emit('ready', new RouterReadyEvent({router:this}));
+	}
+
 	async load(paths) {
 		const components = new ComponentCollection();
 		$private.set(this, 'components', components);
-		this.mirror(components.EVENTS, components);
+		this.mirror(components.constructor.EVENTS, components);
 		await components.load(paths);
 		this.emit(['load', $private.get(this, 'loadEventSymbol')], new RouterLoadEvent({router:this}));
 	}

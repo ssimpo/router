@@ -75,8 +75,7 @@ function getControllerMethod(func, controller) {
 	}
 }
 
-
-export default class Controller extends EventEmitter {
+export class Controller extends EventEmitter {
 	constructor({name, path, component}) {
 		super({name, path, component});
 
@@ -102,11 +101,7 @@ export default class Controller extends EventEmitter {
 	}
 
 	static get EVENTS() {
-		return ['ready', 'load'];
-	}
-
-	get EVENTS() {
-		return [...this.constructor.EVENTS, ...$private.get(this, 'EVENTS')];
+		return ['ready', 'load', 'routing'];
 	}
 
 	async loadControlers(path) {
@@ -167,3 +162,5 @@ export async function getControllers(paths, componentName) {
 
 	return controllers;
 }
+
+export default Controller;
