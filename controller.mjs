@@ -1,18 +1,10 @@
 import Private from "@simpo/private";
-import {getFiles} from "../fs";
-import {makeArray} from "../array";
-import {sep} from "path";
-import flattenDeep from "lodash/flattenDeep";
-import isObject from "lodash/isObject";
 import isFunction from "lodash/isFunction";
 import uniq from "lodash/uniq";
 import Event, {EventEmitter} from "./event";
 import {parseParameters} from "../function";
 import {ProcedureError, codes as Error_Codes} from "./error";
 
-const controllerExtensions = ['mjs','js'];
-const xControllerName = new RegExp(`\/([^/]*?)\.(?:${controllerExtensions.join('|')})`+'$');
-const controllerExtensonsFilter = controllerExtensions.map(ext=>`*.${ext}`);
 
 const $private = Private.getInstance();
 
@@ -146,21 +138,6 @@ export class Controller extends EventEmitter {
 		if ($private.get(this, 'ready', false)) cb(this);
 		this.once($private.get(this, 'readyEventSymbol'), ()=>cb(this));
 	}
-}
-
-export async function getControllers(paths, componentName) {
-	const controllers = {};
-
-	const controllerPaths = await Promise.all(
-		makeArray(paths).map(async (path)=>getFiles(`${path}${sep}controllers`, controllerExtensonsFilter))
-	);
-
-	uniq(flattenDeep(controllerPaths)).map(controllerPath=>{
-		const [, name] = controllerPath.match(xControllerName);
-		controllers[name] = new Controller({name, path:controllerPath, component:componentName});
-	});
-
-	return controllers;
 }
 
 export default Controller;

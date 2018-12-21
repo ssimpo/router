@@ -1,12 +1,18 @@
 import Private from "@simpo/private";
-import {getDirectories} from "../fs";
-import {getControllers, Controller} from "./controller";
+import {getDirectories, getFiles} from "../fs";
+import {Controller} from "./controller";
+import flattenDeep from "lodash/flattenDeep";
+import {sep} from "path";
 import uniq from "lodash/uniq";
 import Event, {EventEmitter} from "./event";
 import {ProcedureError, codes as Error_Codes} from "./error";
+import {makeArray} from "../array";
 
 const xComponentName = /\/([^/]*?)$/;
 const xTrimSlashes = /^\/|\/$/g;
+const controllerExtensions = ['mjs','js'];
+const controllerExtensonsFilter = controllerExtensions.map(ext=>`*.${ext}`);
+const xControllerName = new RegExp(`\/([^/]*?)\.(?:${controllerExtensions.join('|')})`+'$');
 
 const $private = Private.getInstance();
 
@@ -37,6 +43,7 @@ export class Component extends EventEmitter {
 		$private.set(this, 'loadEventSymbol', Symbol("Load Event"));
 		$private.set(this, 'readyEventSymbol', Symbol("Ready Event"));
 		$private.set(this, 'EVENTS', new Set([...Controller.EVENTS]));
+		$private.set(this, 'controllers', {});
 
 		this.setControllersLoaded();
 		this.init(options);
@@ -62,11 +69,30 @@ export class Component extends EventEmitter {
 		return uniq(['ready', 'load', ...Controller.EVENTS]);
 	}
 
-	async loadControllers(path, name) {
-		const controllers = await getControllers(path, name);
-		$private.set(this, 'controllers', controllers);
-		Object.values(controllers).forEach(controller=>this.mirror(controller.constructor.EVENTS, controller));
+	async loadControllers(path) {
+		const controllerPaths = await Promise.all(
+			makeArray(path).map(async (path)=>getFiles(`${path}${sep}controllers`, controllerExtensonsFilter))
+		);
+		uniq(flattenDeep(controllerPaths)).map(controllerPath=>{
+			const [, name] = controllerPath.match(xControllerName);
+			this.addController(new Controller({name, path:controllerPath, component:this.name}))
+		});
+
+
 		this.emit(['load', $private.get(this, 'loadEventSymbol')], new ComponentLoadEvent({component:this}));
+	}
+
+	addController(controller, name=controller.name) {
+		const controllers = $private.get(this, 'controllers');
+		this.mirror(controller.constructor.EVENTS, controller);
+		controllers[name] = controller;
+		$private.set(this, 'controllers', controllers);
+	}
+
+	deleteController(controller, name=controller.name) {
+		const controllers = $private.get(this, 'controllers');
+		delete controllers[name];
+		$private.set(this, 'controllers', controllers);
 	}
 
 	setControllersLoaded() {
