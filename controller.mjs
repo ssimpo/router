@@ -4,6 +4,7 @@ import uniq from "lodash/uniq";
 import Event, {EventEmitter} from "./event";
 import {parseParameters} from "../function";
 import {ProcedureError, codes as Error_Codes} from "./error";
+import {watchFile, unwatchFile} from "fs";
 
 
 const $private = Private.getInstance();
@@ -72,13 +73,15 @@ export class Controller extends EventEmitter {
 		super({name, path, component});
 
 		$private.set(this, 'init', false);
+		$private.set(this, 'cacheBust', 0);
 		$private.set(this, 'loadEventSymbol', Symbol("Load Event"));
 		$private.set(this, 'readyEventSymbol', Symbol("Ready Event"));
 		$private.set(this, 'EVENTS', new Set());
 
+		this.watch = this.watch.bind(this);
 		this.init({name, path, component});
 		this.setControllerLoaded();
-		this.loadControlers(path);
+		this.loadControler(path);
 	}
 
 	init({name, path, component}) {
@@ -96,12 +99,38 @@ export class Controller extends EventEmitter {
 		return ['ready', 'load', 'routing'];
 	}
 
-	async loadControlers(path) {
-		const controller = await import(path);
+	watch(current, previous) {
+		if (current.mtime !== previous.mtime) {
+			$private.set(this, 'ready', false);
+			$private.set(this, 'controllerLoaded', false);
+			this.loadControler($private.get(this, 'path'));
+		}
+	}
+
+	async loadControler(path) {
+		const currentPath = $private.get(this, 'path');
+		if (currentPath !== path) {
+			$private.set(this, 'path', path);
+			unwatchFile(currentPath, this.watch);
+			$private.set(this, 'watching', false);
+		}
+		if (!$private.get(this, 'watching')) {
+			watchFile(path, this.watch);
+			$private.set(this, 'watching', true);
+		}
+
+		const controller = await import(`${path}?cacheBust=${this.cacheBust}`);
 		this.emit(['load', $private.get(this, 'loadEventSymbol')], new ControllerLoadEvent({controller:this}));
 		$private.set(this, 'controller', Object.assign({}, ...Object.keys(controller).map(methodName=>(
 			{[methodName]:getControllerMethod(controller[methodName], this)}
 		))));
+	}
+
+	get cacheBust() {
+		let cacheBust = $private.get(this, 'cacheBust', 0);
+		cacheBust++;
+		$private.set(this, 'cacheBust', cacheBust);
+		return cacheBust;
 	}
 
 	setControllerLoaded() {
