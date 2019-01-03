@@ -3,20 +3,36 @@ import Private from "@simpo/private";
 import {makeArray} from "../array";
 import isSymbol from "lodash/isSymbol";
 
+const $private = new Private();
+
 export default class Event {}
 
 export class EventEmitter extends EventEmitterNode {
-	addListener(eventNames, listener) {
-		return this.bindEmitterAction(eventNames, 'addListener', listener);
+	constructor(...params) {
+		super(...params);
+		$private.set(this, 'bindEmitterAction', (eventNames, action, ...params)=>{
+			makeArray(eventNames).forEach(eventName=>super[action](eventName, ...params));
+			return this;
+		});
 	}
 
-	bindEmitterAction(eventNames, action, ...params) {
-		makeArray(eventNames).forEach(eventName=>super[action](eventName, ...params));
-		return this;
+	addListener(...params) {
+		return this.on(...params);
 	}
 
-	emit(eventNames, ...params) {
-		return this.bindEmitterAction(eventNames, 'emit', ...params);
+	emitSync(eventNames, ...params) {
+		return $private.invoke(this, 'bindEmitterAction', eventNames, 'emit', ...params);
+	}
+
+	async emit(eventName, ...params) {
+		const eventNames = makeArray(eventName);
+		let hasListeners = false;
+		for (let eventsNo=0; eventsNo<eventNames.length; eventsNo++) {
+			const listeners = this.listeners(eventNames[eventsNo]);
+			hasListeners = hasListeners || !!listeners.length;
+			for (let n=0; n<listeners.length; n++) await Promise.resolve(listeners[n](...params));
+		}
+		return hasListeners;
 	}
 
 	mirror(eventNames, source) {
@@ -47,23 +63,36 @@ export class EventEmitter extends EventEmitterNode {
 		}
 	}
 
+	off(...params) {
+		return this.removeListener(...params);
+	}
+
 	on(eventNames, listener) {
-		return this.bindEmitterAction(eventNames, 'on', listener);
+		return $private.invoke(this, 'bindEmitterAction', eventNames, 'on', listener);
 	}
 
 	once(eventNames, listener) {
-		return this.bindEmitterAction(eventNames, 'once', listener);
+		return $private.invoke(this, 'bindEmitterAction', eventNames, 'once', listener);
 	}
 
-	off(eventNames, listener) {
-		return this.bindEmitterAction(eventNames, 'off', listener);
+	removeListener(eventNames, listener) {
+		return $private.invoke(this, 'bindEmitterAction', eventNames, 'off', listener);
 	}
 
 	prependListener(eventNames, listener) {
-		return this.bindEmitterAction(eventNames, 'prependListener', listener);
+		return $private.invoke(this, 'bindEmitterAction', eventNames, 'prependListener', listener);
 	}
 
 	prependOnceListener(eventNames, listener) {
-		return this.bindEmitterAction(eventNames, 'prependOnceListener', listener);
+		return $private.invoke(this, 'bindEmitterAction', eventNames, 'prependOnceListener', listener);
+	}
+
+	get maxListeners() {
+		return this.getMaxListeners();
+	}
+
+	set maxListeners(n) {
+		this.setMaxListeners(n);
+		return true;
 	}
 }

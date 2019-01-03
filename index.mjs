@@ -31,7 +31,7 @@ export default class Router extends EventEmitter {
 		$private.set(this, 'init', false);
 		Object.keys(options).forEach(option=>$private.set(this, option, options[option]));
 		this.middleware = this.middleware.bind(this);
-		this.once($private.get(this, 'loadEventSymbol'), this.onReady);
+		this.once($private.get(this, 'loadEventSymbol'), this.onReady.bind(this));
 	}
 
 	init(paths) {
