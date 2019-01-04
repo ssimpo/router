@@ -1,9 +1,9 @@
-import {ComponentCollection} from "./lib/component";
+import {ComponentCollection} from "./src/component";
 import Private from "@simpo/private";
-import Event, {EventEmitter} from "./lib/event";
-import {ProcedureError, codes as Error_Codes} from "./lib/error";
+import Event, {EventEmitter} from "./src/event";
+import {ProcedureError, codes as Error_Codes} from "./src/error";
 
-const $private = Private.getInstance();
+const $private = new Private();
 
 
 export class RouterEvent extends Event {

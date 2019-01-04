@@ -1,6 +1,6 @@
 import EventEmitterNode from "events";
 import Private from "@simpo/private";
-import {makeArray} from "./array";
+import {makeArray} from "./util";
 import isSymbol from "lodash/isSymbol";
 
 const $private = new Private();

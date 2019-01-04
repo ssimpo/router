@@ -1,12 +1,11 @@
 import Private from "@simpo/private";
-import {getDirectories, getFiles} from "./fs";
+import {getDirectories, getFiles, makeArray} from "./util";
 import {Controller} from "./controller";
 import flattenDeep from "lodash/flattenDeep";
 import {sep} from "path";
 import uniq from "lodash/uniq";
 import Event, {EventEmitter} from "./event";
 import {ProcedureError, codes as Error_Codes} from "./error";
-import {makeArray} from "./array";
 
 const xComponentName = /\/([^/]*?)$/;
 const xTrimSlashes = /^\/|\/$/g;
