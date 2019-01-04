@@ -1,7 +1,7 @@
-import {ComponentCollection} from "./component";
+import {ComponentCollection} from "./lib/component";
 import Private from "@simpo/private";
-import Event, {EventEmitter} from "./event";
-import {ProcedureError, codes as Error_Codes} from "./error";
+import Event, {EventEmitter} from "./lib/event";
+import {ProcedureError, codes as Error_Codes} from "./lib/error";
 
 const $private = Private.getInstance();
 
