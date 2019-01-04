@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "description": "Koa Component/Controller router",
   "main": "gulpfile.js",
-  "private": true,
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
