@@ -1,6 +1,6 @@
 {
   "name": "@simpo/router",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Koa Component/Controller router",
   "main": "gulpfile.js",
   "keywords": [
