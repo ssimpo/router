@@ -9,6 +9,7 @@
     "components",
     "controllers"
   ],
+  "main": "index",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -16,9 +17,6 @@
     "type": "git",
     "url": "git+https://ssimpo@github.com/ssimpo/router.git"
   },
-  "keywords": [
-    "prayer"
-  ],
   "author": "Stephen Simpson",
   "license": "SEE LICENSE IN LICENSE.md",
   "bugs": {
