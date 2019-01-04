@@ -1,7 +1,7 @@
 import Private from "@simpo/private";
 import isFunction from "lodash/isFunction";
 import uniq from "lodash/uniq";
-import Event, {EventEmitter} from "./event";
+import Event, {EventEmitter} from "@simpo/async-event-emitter";
 import {parseParameters} from "./util";
 import {ProcedureError, codes as Error_Codes} from "./error";
 import {watchFile, unwatchFile} from "fs";

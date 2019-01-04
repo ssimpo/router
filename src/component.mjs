@@ -4,7 +4,7 @@ import {Controller} from "./controller";
 import flattenDeep from "lodash/flattenDeep";
 import {sep} from "path";
 import uniq from "lodash/uniq";
-import Event, {EventEmitter} from "./event";
+import Event, {EventEmitter} from "@simpo/async-event-emitter";
 import {ProcedureError, codes as Error_Codes} from "./error";
 
 const xComponentName = /\/([^/]*?)$/;

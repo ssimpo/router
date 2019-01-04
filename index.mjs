@@ -1,6 +1,6 @@
 import {ComponentCollection} from "./src/component";
 import Private from "@simpo/private";
-import Event, {EventEmitter} from "./src/event";
+import Event, {EventEmitter} from "@simpo/async-event-emitter";
 import {ProcedureError, codes as Error_Codes} from "./src/error";
 
 const $private = new Private();
